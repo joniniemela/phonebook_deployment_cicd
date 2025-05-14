@@ -41,6 +41,7 @@ const App = () => {
                     })
                     .catch(error => {
                         setErrorMessage(`Information of ${newName} was already removed from the server`);
+                        console.error(error)
                         setTimeout(() => setErrorMessage(null), 5000);
                         setPersons(persons.filter(person => person.id !== existingPerson.id));
                     });

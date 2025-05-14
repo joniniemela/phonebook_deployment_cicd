@@ -1,3 +1,5 @@
+import PropTypes from 'prop-types';
+
 const InfoNotification = ({ message }) => {
     if (message === null) {
         return null
@@ -9,6 +11,10 @@ const InfoNotification = ({ message }) => {
         </div>
     )
 }
+
+InfoNotification.propTypes = {
+    message: PropTypes.string,
+};
 
 export default InfoNotification
 

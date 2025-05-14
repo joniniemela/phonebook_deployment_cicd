@@ -6,9 +6,8 @@ on:
       - main
 
 jobs:
-  build:
+  deployment_pipeline:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,11 +20,67 @@ jobs:
       - name: Install Dependencies (Frontend)
         run: npm install
         working-directory: ./frontend
-      - name: Check style
+      - name: Check style backend
         run: npm run lint
+        working-directory: ./backend
+      - name: Check style frontend
+        run: npm run lint
+        working-directory: ./frontend
       - name: Build UI
         run: npm run build:ui
         working-directory: ./backend
+      - name: Trigger Render.com deployment
+        uses: sws2apps/render-deployment@main
+        with:
+          serviceId: ${{ secrets.RENDER_SERVICE_ID }}
+          apiKey: ${{ secrets.RENDER_API_KEY }}
+      - name: Deployment success
+        if: success()
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d '{
+            "content": "**✅Deploy Successful!**\n${{ github.repository }}\nVersion: ${{ github.sha }}"
+          }' \
+          $WEBHOOK_URL #
 
-      - name: Deploy (Optional)
-        run: echo "Deployment step here"
+      - name: Deployment failed
+        if: failure()
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d '{
+            "content": "**❌Deploy Failed!**\n${{ github.repository }}\nVersion: ${{ github.sha }}"
+          }' \
+          $WEBHOOK_URL
+
+      - name: Deployment cancelled
+        if: cancelled()
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d '{
+            "content": "**🔄Deploy Cancelled!**\n${{ github.repository }}\nVersion: ${{ github.sha }}"
+          }' \
+          $WEBHOOK_URL #
+  tag_release:
+    needs: [ deployment_pipeline ]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    if: "! contains(github.event.head_commit.message, '#skip')"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: '0'
+      - name: Bump version and push tag
+        uses: anothrNick/github-tag-action@1.73.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BUMP: patch
